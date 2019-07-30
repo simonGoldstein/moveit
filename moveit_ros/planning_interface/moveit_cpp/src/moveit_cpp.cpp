@@ -69,6 +69,17 @@
 #include <ros/console.h>
 #include <ros/ros.h>
 
+namespace moveit
+{
+namespace planning_interface
+{
+
+const std::string MoveItCpp::ROBOT_DESCRIPTION =
+  "robot_description";  // name of the robot description (a param name, so it can be changed externally)
+
+const std::string GRASP_PLANNING_SERVICE_NAME = "plan_grasps";  // name of the service that can be used to plan grasps
+}  //  planning_interface
+}  //  moveit
 moveit::planning_interface::MoveItCpp::MoveItCpp(const std::string& group_name,
                                                  const std::shared_ptr<tf2_ros::Buffer>& tf_buffer,
                                                  const ros::WallDuration& wait_for_servers)
@@ -86,89 +97,89 @@ moveit::planning_interface::MoveItCpp::MoveItCpp(const std::string& group,
 moveit::planning_interface::MoveItCpp::MoveItCpp(const Options& opt,
                                                  const std::shared_ptr<tf2_ros::Buffer>& tf_buffer,
                                                  const ros::WallDuration& wait_for_servers)
-  : opt_(opt), node_handle_(opt.node_handle_), tf_buffer_(tf_buffer)
+  : node_handle_(opt.node_handle_), tf_buffer_(tf_buffer)
 {
+  group_name_ = opt.group_name_;
+  robot_description_ = opt.robot_description_;
   robot_model_ = opt.robot_model_ ? opt.robot_model_ : getSharedRobotModel(opt.robot_description_);
-    if (!getRobotModel())
-    {
-      std::string error = "Unable to construct robot model. Please make sure all needed information is on the "
-                          "parameter server.";
-      ROS_FATAL_STREAM_NAMED("move_group_interface", error);
-      throw std::runtime_error(error);
-    }
+  if (!getRobotModel())
+  {
+    std::string error = "Unable to construct robot model. Please make sure all needed information is on the "
+      "parameter server.";
+    ROS_FATAL_STREAM_NAMED("move_group_interface", error);
+    throw std::runtime_error(error);
+  }
 
-    if (!getRobotModel()->hasJointModelGroup(opt.group_name_))
-    {
-      std::string error = "Group '" + opt.group_name_ + "' was not found.";
-      ROS_FATAL_STREAM_NAMED("move_group_interface", error);
-      throw std::runtime_error(error);
-    }
+  if (!getRobotModel()->hasJointModelGroup(opt.group_name_))
+  {
+    std::string error = "Group '" + opt.group_name_ + "' was not found.";
+    ROS_FATAL_STREAM_NAMED("move_group_interface", error);
+    throw std::runtime_error(error);
+  }
 
-    joint_model_group_ = getRobotModel()->getJointModelGroup(opt.group_name_);
+  joint_model_group_ = getRobotModel()->getJointModelGroup(opt.group_name_);
 
-    joint_state_target_.reset(new robot_state::RobotState(getRobotModel()));
-    joint_state_target_->setToDefaultValues();
-    active_target_ = JOINT;
-    can_look_ = false;
-    can_replan_ = false;
-    replan_delay_ = 2.0;
-    goal_joint_tolerance_ = 1e-4;
-    goal_position_tolerance_ = 1e-4;     // 0.1 mm
-    goal_orientation_tolerance_ = 1e-3;  // ~0.1 deg
-    allowed_planning_time_ = 5.0;
-    num_planning_attempts_ = 1;
-    max_velocity_scaling_factor_ = 1.0;
-    max_acceleration_scaling_factor_ = 1.0;
-    initializing_constraints_ = false;
+  joint_state_target_.reset(new robot_state::RobotState(getRobotModel()));
+  joint_state_target_->setToDefaultValues();
+  active_target_ = JOINT;
+  can_look_ = false;
+  can_replan_ = false;
+  replan_delay_ = 2.0;
+  goal_joint_tolerance_ = 1e-4;
+  goal_position_tolerance_ = 1e-4;     // 0.1 mm
+  goal_orientation_tolerance_ = 1e-3;  // ~0.1 deg
+  allowed_planning_time_ = 5.0;
+  num_planning_attempts_ = 1;
+  max_velocity_scaling_factor_ = 1.0;
+  max_acceleration_scaling_factor_ = 1.0;
+  initializing_constraints_ = false;
 
-    if (joint_model_group_->isChain())
-      end_effector_link_ = joint_model_group_->getLinkModelNames().back();
-    pose_reference_frame_ = getRobotModel()->getModelFrame();
+  if (joint_model_group_->isChain())
+    end_effector_link_ = joint_model_group_->getLinkModelNames().back();
+  pose_reference_frame_ = getRobotModel()->getModelFrame();
 
-        trajectory_event_publisher_ = node_handle_.advertise<std_msgs::String>(
-        trajectory_execution_manager::TrajectoryExecutionManager::EXECUTION_EVENT_TOPIC, 1, false);
-    attached_object_publisher_ = node_handle_.advertise<moveit_msgs::AttachedCollisionObject>(
-                                                                                              planning_scene_monitor::PlanningSceneMonitor::DEFAULT_ATTACHED_COLLISION_OBJECT_TOPIC, 1, false);
+  trajectory_event_publisher_ = node_handle_.advertise<std_msgs::String>(trajectory_execution_manager::TrajectoryExecutionManager::EXECUTION_EVENT_TOPIC, 1, false);
+  attached_object_publisher_ = node_handle_.advertise<moveit_msgs::AttachedCollisionObject>(planning_scene_monitor::PlanningSceneMonitor::DEFAULT_ATTACHED_COLLISION_OBJECT_TOPIC, 1, false);
 
-    current_state_monitor_ = getSharedStateMonitor(robot_model_, tf_buffer_, node_handle_);
+  current_state_monitor_ = getSharedStateMonitor(robot_model_, tf_buffer_, node_handle_);
 
-    ros::WallTime timeout_for_servers = ros::WallTime::now() + wait_for_servers;
-    if (wait_for_servers == ros::WallDuration())
-      timeout_for_servers = ros::WallTime();  // wait for ever
-    double allotted_time = wait_for_servers.toSec();
+  ros::WallTime timeout_for_servers = ros::WallTime::now() + wait_for_servers;
+  if (wait_for_servers == ros::WallDuration())
+    timeout_for_servers = ros::WallTime();  // wait for ever
+  double allotted_time = wait_for_servers.toSec();
 
-    move_action_client_.reset(
-        new actionlib::SimpleActionClient<moveit_msgs::MoveGroupAction>(node_handle_, move_group::MOVE_ACTION, false));
-    waitForAction(move_action_client_, move_group::MOVE_ACTION, timeout_for_servers, allotted_time);
+  move_action_client_.reset(
+                            new actionlib::SimpleActionClient<moveit_msgs::MoveGroupAction>(node_handle_, move_group::MOVE_ACTION, false));
+  waitForAction(move_action_client_, move_group::MOVE_ACTION, timeout_for_servers, allotted_time);
 
-    pick_action_client_.reset(
-        new actionlib::SimpleActionClient<moveit_msgs::PickupAction>(node_handle_, move_group::PICKUP_ACTION, false));
-    waitForAction(pick_action_client_, move_group::PICKUP_ACTION, timeout_for_servers, allotted_time);
+  pick_action_client_.reset(
+                            new actionlib::SimpleActionClient<moveit_msgs::PickupAction>(node_handle_, move_group::PICKUP_ACTION, false));
+  waitForAction(pick_action_client_, move_group::PICKUP_ACTION, timeout_for_servers, allotted_time);
 
-    place_action_client_.reset(
-        new actionlib::SimpleActionClient<moveit_msgs::PlaceAction>(node_handle_, move_group::PLACE_ACTION, false));
-    waitForAction(place_action_client_, move_group::PLACE_ACTION, timeout_for_servers, allotted_time);
+  place_action_client_.reset(
+                             new actionlib::SimpleActionClient<moveit_msgs::PlaceAction>(node_handle_, move_group::PLACE_ACTION, false));
+  waitForAction(place_action_client_, move_group::PLACE_ACTION, timeout_for_servers, allotted_time);
 
-    execute_action_client_.reset(new actionlib::SimpleActionClient<moveit_msgs::ExecuteTrajectoryAction>(
-        node_handle_, move_group::EXECUTE_ACTION_NAME, false));
-    waitForAction(execute_action_client_, move_group::EXECUTE_ACTION_NAME, timeout_for_servers, allotted_time);
+  execute_action_client_.reset(new actionlib::SimpleActionClient<moveit_msgs::ExecuteTrajectoryAction>(
+                                                                                                       node_handle_, move_group::EXECUTE_ACTION_NAME, false));
+  waitForAction(execute_action_client_, move_group::EXECUTE_ACTION_NAME, timeout_for_servers, allotted_time);
 
-    query_service_ =
-        node_handle_.serviceClient<moveit_msgs::QueryPlannerInterfaces>(move_group::QUERY_PLANNERS_SERVICE_NAME);
-    get_params_service_ =
-        node_handle_.serviceClient<moveit_msgs::GetPlannerParams>(move_group::GET_PLANNER_PARAMS_SERVICE_NAME);
-    set_params_service_ =
-        node_handle_.serviceClient<moveit_msgs::SetPlannerParams>(move_group::SET_PLANNER_PARAMS_SERVICE_NAME);
+  query_service_ =
+    node_handle_.serviceClient<moveit_msgs::QueryPlannerInterfaces>(move_group::QUERY_PLANNERS_SERVICE_NAME);
+  get_params_service_ =
+    node_handle_.serviceClient<moveit_msgs::GetPlannerParams>(move_group::GET_PLANNER_PARAMS_SERVICE_NAME);
+  set_params_service_ =
+    node_handle_.serviceClient<moveit_msgs::SetPlannerParams>(move_group::SET_PLANNER_PARAMS_SERVICE_NAME);
 
-    cartesian_path_service_ =
-        node_handle_.serviceClient<moveit_msgs::GetCartesianPath>(move_group::CARTESIAN_PATH_SERVICE_NAME);
+  cartesian_path_service_ =
+    node_handle_.serviceClient<moveit_msgs::GetCartesianPath>(move_group::CARTESIAN_PATH_SERVICE_NAME);
 
-    plan_grasps_service_ = node_handle_.serviceClient<moveit_msgs::GraspPlanning>(GRASP_PLANNING_SERVICE_NAME);
+  plan_grasps_service_ = node_handle_.serviceClient<moveit_msgs::GraspPlanning>(GRASP_PLANNING_SERVICE_NAME);
 
-    ROS_INFO_STREAM_NAMED("move_group_interface", "Ready to take commands for planning group " << opt.group_name_
-                                                                                               << ".");
-    group_name_ = opt.group_name_;
-    robot_description_ = opt.robot_description_;
+  ROS_INFO_STREAM_NAMED("move_group_interface", "Ready to take commands for planning group " << opt.group_name_
+                        << ".");
+  group_name_ = opt.group_name_;
+  robot_description_ = opt.robot_description_;
 }
 
 moveit::planning_interface::MoveItCpp::MoveItCpp(
@@ -1853,7 +1864,6 @@ bool moveit::planning_interface::MoveItCpp::hasPoseTarget(const std::string& end
   return pose_targets_.find(eef) != pose_targets_.end();
 }
 
-/*
 void moveit::planning_interface::MoveItCpp::initializeConstraintsStorageThread(const std::string& host, unsigned int port)
 {
   // Set up db
@@ -1872,7 +1882,6 @@ void moveit::planning_interface::MoveItCpp::initializeConstraintsStorageThread(c
   }
   initializing_constraints_ = false;
 }
-*/
 
 void moveit::planning_interface::MoveItCpp::clearContents()
 {

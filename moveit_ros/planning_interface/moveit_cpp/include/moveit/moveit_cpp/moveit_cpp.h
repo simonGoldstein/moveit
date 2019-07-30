@@ -33,11 +33,12 @@
  *  POSSIBILITY OF SUCH DAMAGE.
  *********************************************************************/
 
-/* Author: Ioan Sucan, Sachin Chitta */
+/* Author: Ioan Sucan, Sachin Chitta, simon Goldstein */
 
 #ifndef MOVEIT_MOVEIT_CPP_MOVEIT_CPP_
 #define MOVEIT_MOVEIT_CPP_MOVEIT_CPP_
 
+#include <moveit/warehouse/constraints_storage.h>
 #include <moveit/macros/class_forward.h>
 #include <moveit/macros/deprecation.h>
 #include <moveit/planning_scene_monitor/current_state_monitor.h>
@@ -97,6 +98,7 @@ namespace moveit
 /** \brief Simple interface to MoveIt! components */
 namespace planning_interface
 {
+
 class MoveItErrorCode : public moveit_msgs::MoveItErrorCodes
 {
 public:
@@ -125,11 +127,6 @@ public:
     return val != c;
   }
 };
-
-  //  const std::string MoveItCpp::ROBOT_DESCRIPTION =
-  //  "robot_description";  // name of the robot description (a param name, so it can be changed externally)
-
-const std::string GRASP_PLANNING_SERVICE_NAME = "plan_grasps";  // name of the service that can be used to plan grasps
 
 MOVEIT_CLASS_FORWARD(MoveItCpp);
 
@@ -1029,8 +1026,8 @@ private:
   bool debug_;
 
   // impl contents
-  void initializeConstraintsStorageThread(const std::string& host, unsigned int port)
-  {
+  void initializeConstraintsStorageThread(const std::string& host, unsigned int port);
+  /*{
     // Set up db
     try
     {
@@ -1046,10 +1043,9 @@ private:
       ROS_ERROR_NAMED("move_group_interface", "%s", ex.what());
     }
     initializing_constraints_ = false;
-  }
+  } */
 
-  // Options
-  Options opt_;
+  //  Options
   std::string group_name_;
   std::string robot_description_;
   ros::NodeHandle node_handle_;

@@ -88,6 +88,7 @@ public:
   }
 };
 
+MOVEIT_CLASS_FORWARD(MoveItErrorCode);
 MOVEIT_CLASS_FORWARD(MoveGroupInterface);
 
 /** \class MoveGroupInterface move_group_interface.h moveit/planning_interface/move_group_interface.h
