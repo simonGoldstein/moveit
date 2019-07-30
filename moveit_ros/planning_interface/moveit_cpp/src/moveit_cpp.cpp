@@ -637,13 +637,6 @@ double moveit::planning_interface::MoveItCpp::computeCartesianPath(
     moveit_msgs::RobotTrajectory& trajectory, const moveit_msgs::Constraints& path_constraints, bool avoid_collisions,
     moveit_msgs::MoveItErrorCodes* error_code)
 {
-  bool reset_error_code = false;
-  if (error_code)
-  {
-    reset_error_code = true;
-    error_code = new moveit_msgs::MoveItErrorCodes();
-  }
-
   moveit_msgs::GetCartesianPath::Request req;
   moveit_msgs::GetCartesianPath::Response res;
 
@@ -653,35 +646,32 @@ double moveit::planning_interface::MoveItCpp::computeCartesianPath(
     req.start_state.is_diff = true;
 
   req.group_name = group_name_;
-  req.header.frame_id = getPoseReferenceFrame();
+  req.header.frame_id = pose_reference_frame_;
   req.header.stamp = ros::Time::now();
   req.waypoints = waypoints;
   req.max_step = eef_step;
   req.jump_threshold = jump_threshold;
   req.path_constraints = path_constraints;
   req.avoid_collisions = avoid_collisions;
-  req.link_name = getEndEffectorLink();
+  req.link_name = end_effector_link_;
 
   if (cartesian_path_service_.call(req, res))
   {
-    *error_code = res.error_code;
+    if (error_code)
+      *error_code = res.error_code;
     if (res.error_code.val == moveit_msgs::MoveItErrorCodes::SUCCESS)
     {
       trajectory = res.solution;
-      if (reset_error_code)
-        error_code = nullptr;
       return res.fraction;
     }
     else
-      if (reset_error_code)
-        error_code = nullptr;
+      {
       return -1.0;
+      }
   }
   else
   {
     error_code->val = error_code->FAILURE;
-    if (reset_error_code)
-      error_code = nullptr;
     return -1.0;
   }
 }
