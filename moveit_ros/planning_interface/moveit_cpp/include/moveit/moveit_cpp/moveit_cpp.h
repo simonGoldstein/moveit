@@ -126,6 +126,11 @@ public:
   }
 };
 
+  //  const std::string MoveItCpp::ROBOT_DESCRIPTION =
+  //  "robot_description";  // name of the robot description (a param name, so it can be changed externally)
+
+const std::string GRASP_PLANNING_SERVICE_NAME = "plan_grasps";  // name of the service that can be used to plan grasps
+
 MOVEIT_CLASS_FORWARD(MoveItCpp);
 
 /** \class MoveItCpp move_group_interface.h moveit/planning_interface/move_group_interface.h
@@ -1007,6 +1012,12 @@ private:
   void constructGoal(moveit_msgs::PlaceGoal& goal_out, const std::string& object);
   MoveItErrorCode execute(const Plan& plan, bool wait);
   bool getCurrentState(robot_state::RobotStatePtr& current_state, double wait_seconds);
+  bool setJointValueTarget(const geometry_msgs::Pose& eef_pose, const std::string& end_effector_link,
+                           const std::string& frame, bool approx);
+  robot_state::RobotStatePtr getStartState();
+  bool hasPoseTarget(const std::string& end_effector_link) const;
+  void clearContents();
+  //void initializeConstraintsStorage(const std::string& host, unsigned int port);
 
   // context contents
   planning_scene_monitor::PlanningSceneMonitorPtr planning_scene_monitor_;
